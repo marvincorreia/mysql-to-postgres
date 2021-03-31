@@ -1,0 +1,18 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+python-dotenv = "*"
+inquirer2 = "*"
+prompt-toolkit = "==3.0.8"
+meaningcloud-python = "*"
+regex = "*"
+mysql-connector-python = "*"
+
+[dev-packages]
+autopep8 = "*"
+
+[requires]
+python_version = "3.8"
