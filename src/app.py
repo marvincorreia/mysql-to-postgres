@@ -3,6 +3,8 @@ import subprocess
 from dotenv import load_dotenv
 from inquirer2 import print_json
 from operator import itemgetter
+import shlex
+import re
 
 import utils.questions as Q
 from utils.db.my_connector import MYConnector
@@ -16,7 +18,13 @@ config = {
     'raise_on_warnings': True
 }
 
-skip_definer = " | sed -e 's/DEFINER[ ]*=[ ]*[^*]*\*/\*/' | sed -e 's/DEFINER[ ]*=[ ]*[^*]*PROCEDURE/PROCEDURE/' | sed -e 's/DEFINER[ ]*=[ ]*[^*]*FUNCTION/FUNCTION/' > dump.sql"
+# skip_definer = "sed -i 's/DEFINER[ ]*=[ ]*[^*]*\*/\*/' | sed -i 's/DEFINER[ ]*=[ ]*[^*]*PROCEDURE/PROCEDURE/' | sed -i 's/DEFINER[ ]*=[ ]*[^*]*FUNCTION/FUNCTION/'"
+
+skip_definer = [
+    's/DEFINER[ ]*=[ ]*[^*]*\*/\*/',
+    's/DEFINER[ ]*=[ ]*[^*]*PROCEDURE/PROCEDURE/',
+    's/DEFINER[ ]*=[ ]*[^*]*FUNCTION/FUNCTION/'
+]
 
 dump_modes = {
     "Only Data": "--no-create-info",
@@ -61,50 +69,63 @@ def get_databases():
     return []
 
 
+def try_again():
+    status = Q.confirm_input("continue", "Try again?", default=True)
+    return status['continue']
+
+
 def generate_cmd():
     cmd = ""
     if state['operation'] == operations[0]:
         config, dump_mode = state['config'], dump_modes[state['dump_mode']]
         databases = " ".join(state['databases'])
         cmd = f"mysqldump -u {config['user']} -p{config['password']} -h {config['host']} -P {config['port']} \
-        --databases {databases} {dump_mode} --compact --compatible=ansi > data.sql"
+        --databases {databases} {dump_mode} --set-charset=FALSE --compatible=ansi"
     state.update(dict(cmd=cmd))
 
 
-def execute_cmd(cmd):
-    p = subprocess.run(cmd, capture_output=True, text=True)
+def execute_cmd():
+    generate_cmd()
+    cmd = state['cmd'].split()
+    sp = subprocess.run(cmd, shell=False, capture_output=True, text=True, cwd=os.path.dirname(__file__))
+    stdout = sp.stdout
+    for pattern in skip_definer:
+        stdout = re.sub(pattern, '', stdout)
+    with open(os.path.join(os.path.dirname(__file__), 'dump.sql'), mode='w') as fp:
+        fp.write(stdout)
 
 
 def menu_dump_mode():
     choices = list(dump_modes.keys())
-    result = Q.list_input('dump_mode', "Which kind of dump", choices, sep_text="Select dump mode")
+    result = Q.list_input('dump_mode', "Select kind of dump", choices, sep_text="Select dump mode")
     state.update(result)
 
 
 def menu_select_databases():
     choices = get_databases()
-    result = Q.select_input("databases", "Select databases to dump", choices)
-    if not result['databases']:
-        print("\nERROR: You must select at least one database!\n")
-        menu_select_databases()
-    state.update(result)
+    while True:
+        result = Q.select_input("databases", "Select databases to dump", choices)
+        if not result['databases']:
+            print("\nERROR: You must select at least one database!\n")
+            continue
+        state.update(result)
+        break
 
 
-def menu_db_creadentials():
+def menu_db_connect():
     while True:
         config = state['config']
-        result = Q.text_input("host", "MYSQL DB host", default=config['host'])
-        result.update(Q.number_input("port", "MYSQL DB port", default=config['port']))
-        result.update(Q.text_input("user", "MYSQL DB user", default=config['user']))
-        result.update(Q.password_input("password", "MYSQL DB password"))
+        result = Q.text_input("host", "DB HOST:", default=config['host'])
+        result.update(Q.number_input("port", "DB PORT:", default=config['port']))
+        result.update(Q.text_input("user", "DB USER:", default=config['user']))
+        result.update(Q.password_input("password", "DB PASSWORD:"))
         state.update(dict(config=result))
         conn = MYConnector(config=state['config'])
         if conn.connect():
             conn.close()
             return True
         else:
-            status = Q.confirm_input("continue", "Try again?", default=True)
-            if not status['continue']:
+            if not try_again():
                 return False
 
 
@@ -113,11 +134,10 @@ def menu():
         result = Q.list_input('operation', "Choise an operation", operations)
         state.update(result)
         if state['operation'] == operations[0]:
-            if menu_db_creadentials():
+            if menu_db_connect():
                 menu_select_databases()
                 menu_dump_mode()
-                generate_cmd()
-            # execute_cmd(cmd)
+                execute_cmd()
         elif state['operation'] == operations[1]:
             continue
         else:
