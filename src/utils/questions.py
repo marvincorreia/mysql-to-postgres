@@ -9,6 +9,9 @@ from . import style
 
 from . import validators
 
+
+mstyle = style.custom_style_2
+
 q_select = [
     {
         'type': 'checkbox',
@@ -75,6 +78,15 @@ q_list_select = [
     }
 ]
 
+q_confirm =[
+     {
+        'type': 'confirm',
+        'message': 'Do you want to continue?',
+        'name': 'continue',
+        'default': True,
+    }
+]
+
 
 def select_input(name, message, choices, sep_text=None):
     question = q_select.copy()
@@ -85,37 +97,37 @@ def select_input(name, message, choices, sep_text=None):
     question[0]['message'] = message
     question[0]['name'] = name
     question[0]['choices'] = m_choices
-    answers = prompt.prompt(question, style=style.custom_style_3)
+    answers = prompt.prompt(question, style=mstyle)
     return answers
 
 
-def password_input(message=None):
+def password_input(name, message=None):
     question = q_pwd.copy()
     if message:
         question[0]['message'] = message
-
-    answers = prompt.prompt(question, style=style.custom_style_3)
+    question[0]['name'] = name
+    answers = prompt.prompt(question, style=mstyle)
     return answers
 
 
-def text_input(message, empty=None):
+def text_input(name, message, empty=None, default=None):
     question = q_text.copy()
     if empty:
         del question[0]['validate']
+    if default:
+        question[0]['default'] = default
     question[0]['message'] = message
-    return prompt.prompt(question, style=style.custom_style_3)
+    question[0]['name'] = name
+    return prompt.prompt(question, style=mstyle)
 
 
-def number_input(message):
+def number_input(name, message, empty=None, default=None):
     question = q_number.copy()
     question[0]['message'] = message
-    return prompt.prompt(question, style=style.custom_style_3)
-
-
-def number_input(message, empty=None):
-    question = q_number.copy()
-    question[0]['message'] = message
-    return prompt.prompt(question, style=style.custom_style_3)
+    question[0]['name'] = name
+    if default:
+        question[0]['default'] = default
+    return prompt.prompt(question, style=mstyle)
 
 
 def list_input(name, message, choices, sep_text=None):
@@ -127,5 +139,14 @@ def list_input(name, message, choices, sep_text=None):
     question[0]['message'] = message
     question[0]['name'] = name
     question[0]['choices'] = m_choices
-    answers = prompt.prompt(question, style=style.custom_style_3)
+    answers = prompt.prompt(question, style=mstyle)
     return answers
+
+
+def confirm_input(name, message, default=None):
+    question = q_confirm.copy()
+    question[0]['message'] = message
+    question[0]['name'] = name
+    if default != None:
+        question[0]['default'] = default
+    return prompt.prompt(question, style=mstyle)
